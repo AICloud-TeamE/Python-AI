@@ -125,8 +125,7 @@ def get_forecast(req: func.HttpRequest) -> func.HttpResponse:
             "temperature_2m_mean":       round(row["temperature_2m_mean"], 1),
             "temperature_2m_max":        round(row["temperature_2m_max"], 1),
             "temperature_2m_min":        round(row["temperature_2m_min"], 1),
-            "precipitation_probability_mean":  round(row["precipitation_probability_mean"], 1),
-            "uv_index_max":                    round(row["uv_index_max"], 1),
+            "precipitation_sum":         round(row["precipitation_sum"], 1),
             # 气象分类
             "weathercode":                   code,
             "weather":                         categorize_weather(code)

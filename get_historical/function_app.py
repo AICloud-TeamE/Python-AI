@@ -46,11 +46,7 @@ def get_historical(req: func.HttpRequest) -> func.HttpResponse:
             "temperature_2m_mean",
             "temperature_2m_max",
             "temperature_2m_min",
-            "apparent_temperature_mean",
             "precipitation_sum",
-            "shortwave_radiation_sum",
-            "precipitation_probability_mean",
-            "uv_index_max",
             "weathercode"
         ]),
         "timezone": TIMEZONE
@@ -69,11 +65,7 @@ def get_historical(req: func.HttpRequest) -> func.HttpResponse:
         "temperature_2m_mean": d.get("temperature_2m_mean", []),
         "temperature_2m_max": d.get("temperature_2m_max", []),
         "temperature_2m_min": d.get("temperature_2m_min", []),
-        "apparent_temperature_mean": d.get("apparent_temperature_mean", []),
         "precipitation_sum": d.get("precipitation_sum", []),
-        "shortwave_radiation_sum": d.get("shortwave_radiation_sum", []),
-        "precipitation_probability_mean": d.get("precipitation_probability_mean", []),
-        "uv_index_max": d.get("uv_index_max", []),
         "weathercode": d.get("weathercode", [])
     })
     # 添加天气分类列
