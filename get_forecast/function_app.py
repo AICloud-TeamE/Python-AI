@@ -38,8 +38,21 @@ def load_models():
 
 models = load_models()
 
-# 创建 FunctionApp 实例（匿名访问）
-app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+# 创建 FunctionApp 实例
+app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
+
+# 天气分类函数
+def categorize_weather(code: int) -> str:
+    """
+    将 Open-Meteo 返回的 weathercode 分类为 'sunny', 'cloudy' 或 'rainy'.
+    0,1,2 => sunny; 3,45,48 => cloudy; 其他 => rainy
+    """
+    if code in (0, 1, 2):
+        return "sunny"
+    elif code in (3, 45, 48):
+        return "cloudy"
+    else:
+        return "rainy"
 
 @app.route(route="GetForecast", methods=["GET", "POST"])
 def get_forecast(req: func.HttpRequest) -> func.HttpResponse:
@@ -51,7 +64,7 @@ def get_forecast(req: func.HttpRequest) -> func.HttpResponse:
         try:
             body = req.get_json()
             date = body.get("date")
-        except:
+        except ValueError:
             pass
     if not date:
         return func.HttpResponse(
@@ -59,7 +72,7 @@ def get_forecast(req: func.HttpRequest) -> func.HttpResponse:
             status_code=400
         )
 
-    # 2. 拉天气
+    # 2. 拉取天气数据
     try:
         start = datetime.strptime(date, "%Y-%m-%d").date()
     except ValueError:
@@ -73,7 +86,7 @@ def get_forecast(req: func.HttpRequest) -> func.HttpResponse:
         "start_date": start.isoformat(),
         "end_date":   end.isoformat(),
         "daily": ",".join([
-            "apparent_temperature_max", "apparent_temperature_min",
+            "temperature_2m_mean", "temperature_2m_max","temperature_2m_min", "apparent_temperature_mean",
             "precipitation_sum", "shortwave_radiation_sum",
             "precipitation_probability_mean", "uv_index_max", "weathercode"
         ]),
@@ -81,21 +94,20 @@ def get_forecast(req: func.HttpRequest) -> func.HttpResponse:
     }
     r = requests.get(weather_url, params=params)
     r.raise_for_status()
-    d = r.json()["daily"]
+    d = r.json().get("daily", {})
 
+    # 构建 DataFrame
     df = pd.DataFrame({
-        "date": d["time"],
-        "apparent_temperature_mean": [
-            (mx + mn)/2 for mx, mn in zip(
-                d["apparent_temperature_max"],
-                d["apparent_temperature_min"]
-            )
-        ],
-        "precipitation_sum":             d["precipitation_sum"],
-        "shortwave_radiation_sum":       d["shortwave_radiation_sum"],
-        "precipitation_probability_mean":d["precipitation_probability_mean"],
-        "uv_index_max":                  d["uv_index_max"],
-        "weathercode":                   d["weathercode"],
+        "date": d.get("time", []),
+        "temperature_2m_mean": d.get("temperature_2m_mean", []),
+        "temperature_2m_max": d.get("temperature_2m_max", []),
+        "temperature_2m_min": d.get("temperature_2m_min", []),
+        "apparent_temperature_mean": d.get("apparent_temperature_mean", []),
+        "precipitation_sum":             d.get("precipitation_sum", []),
+        "shortwave_radiation_sum":       d.get("shortwave_radiation_sum", []),
+        "precipitation_probability_mean": d.get("precipitation_probability_mean", []),
+        "uv_index_max":                  d.get("uv_index_max", []),
+        "weathercode":                   d.get("weathercode", []),
     })
     df["is_friday"] = pd.to_datetime(df["date"]).dt.weekday.eq(4).astype(int)
 
@@ -107,16 +119,21 @@ def get_forecast(req: func.HttpRequest) -> func.HttpResponse:
     # 4. 格式化输出
     out = []
     for _, row in df.iterrows():
-        e = {
+        code = int(row["weathercode"])
+        entry = {
             "date": row["date"],
-            "apparent_temperature_mean":      round(row["apparent_temperature_mean"], 1),
-            "precipitation_probability_mean": round(row["precipitation_probability_mean"], 1),
-            "uv_index_max":                   round(row["uv_index_max"], 1),
-            "weather_code":                   int(row["weathercode"])
+            "temperature_2m_mean":       round(row["temperature_2m_mean"], 1),
+            "temperature_2m_max":        round(row["temperature_2m_max"], 1),
+            "temperature_2m_min":        round(row["temperature_2m_min"], 1),
+            "precipitation_probability_mean":  round(row["precipitation_probability_mean"], 1),
+            "uv_index_max":                    round(row["uv_index_max"], 1),
+            # 气象分类
+            "weathercode":                   code,
+            "weather":                         categorize_weather(code)
         }
         for t in TARGET_COLUMNS:
-            e[t] = int(round(row[t]))
-        out.append(e)
+            entry[t] = int(round(row[t]))
+        out.append(entry)
 
     return func.HttpResponse(
         json.dumps(out, ensure_ascii=False),
